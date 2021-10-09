@@ -197,10 +197,14 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 # Print results
+                class_label=[]
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
-
+                    class_label+=[names[int(c)]]
+                #create class label to capture all class
+                print(f"class here {class_label}")
+                time.sleep(1)
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
