@@ -15,6 +15,14 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import time
+import os
+import asyncio
+import json
+import time
+from re import template
+from datetime import datetime
+from azure.iot.device.aio import IoTHubDeviceClient
+import base64
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -30,6 +38,45 @@ from utils.general import apply_classifier, check_img_size, check_imshow, check_
 from utils.plots import Annotator, colors
 from utils.torch_utils import load_classifier, select_device, time_sync
 
+#azure upload function
+async def azure_func(conn_str,car_in=False,img="none"):
+    # use to send azure iot hub once
+
+    print(conn_str)
+    # Create instance of the device client using the authentication provider
+    ##device_client = IoTHubDeviceClient.create_from_connection_string(conn_str)
+
+    # Connect the device client.
+    ##await device_client.connect()
+
+    # define behavior for receiving a message
+    def message_handler(message):
+        print("the data in the message received was ")
+        print(message.data)
+        print("custom properties are")
+        print(message.custom_properties)
+
+
+    # set the message handler on the client
+    ##device_client.on_message_received = message_handler
+
+    # Send a single message
+    print("Sending message...")
+    msg = {
+        "name": "Deep Learning Model",
+        "car": car_in,
+        "image": img,
+        "timestamp" : datetime.now()
+    }
+    print(msg)
+    ##await device_client.send_message(json.dumps(msg, indent=4, sort_keys=True, default=str))
+    time.sleep(1)
+    print("Message successfully sent!")
+
+   
+
+    # finally, shut down the client
+    ##await device_client.shutdown()
 
 @torch.no_grad()
 def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
@@ -55,7 +102,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         line_thickness=3,  # bounding box thickness (pixels)
         hide_labels=False,  # hide labels
         hide_conf=False,  # hide confidences
-        half=False,  # use FP16 half-precision inference
+        half=False,  # use FP16 half-precision inference,
+        azure_upload=False,  # allow to upload to azure
+        connection_string="no string",  # use connection string when azure_upload=true
+        reset_car=0, #reset car pointer, to reset no car condition.
+        
+
         ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -219,6 +271,21 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                         annotator.box_label(xyxy, label, color=colors(c, True))
                         if save_crop:
                             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
+                    #upload to azure
+                    if azure_upload:
+                        con_str=connection_string
+                        if "car" in class_label:
+                            c = int(cls)  # integer class
+                            label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+                            annotator.box_label(xyxy, label, color=colors(c, True))
+                            if names[c] == "car":   
+                                azure_func(con_str,car_in=True,img=p.stem)
+                            time.sleep(2)
+                        else:
+                            reset_car+=1
+                            if reset_car==3:
+                                #three times, send no vehicle reset message
+                                azure_func(con_str,car_in=False,img="none")
 
             # Print time (inference-only)
             print(f'{s}Done. ({t3 - t2:.3f}s)')
@@ -284,6 +351,9 @@ def parse_opt():
     parser.add_argument('--hide-labels', default=False, action='store_true', help='hide labels')
     parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
+    parser.add_argument('--azure_upload', action='store_true', help='allow to upload to azure')
+    parser.add_argument('--connection_string', type=str, default="no connection string", help='connection string to upload to azure')
+    parser.add_argument('--reset_car', type=int, default=0, help='reset pointer for reset the car in condition')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)
