@@ -40,7 +40,7 @@ from utils.torch_utils import load_classifier, select_device, time_sync
 
 #azure upload function
 #async def azure_func(conn_str,car_in=False,img="none"):
-def azure_func(conn_str,car_in=False,img="none"):
+def azure_func(conn_str,cls_type="car",status=False,img="none"):
     # use to send azure iot hub once
 
     print(conn_str)
@@ -65,7 +65,8 @@ def azure_func(conn_str,car_in=False,img="none"):
     print("Sending message...")
     msg = {
         "name": "Deep Learning Model",
-        "car": car_in,
+        "status": status,
+        "class": cls_type,
         "image": img,
         "timestamp" : datetime.now()
     }
@@ -106,7 +107,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         half=False,  # use FP16 half-precision inference,
         azure_upload=False,  # allow to upload to azure
         connection_string="no string",  # use connection string when azure_upload=true
-        reset_car=0, #reset car pointer, to reset no car condition.
+        reset_counter=0, #reset class pointer, for status reporting.
+        cls_type="car", #class used for detection
         
 
         ):
@@ -276,23 +278,23 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                     ##################################################################################################################
                     if azure_upload:
                         con_str=connection_string
-                        if "person" in class_label:
+                        if cls_type in class_label:
                             c = int(cls)  # integer class
                             label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                             annotator.box_label(xyxy, label, color=colors(c, True))
-                            if names[c] == "person":   
+                            if names[c] == cls_type:   
                                 corp=save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True,save=False)
                                 ###opencv debug line
                                 # cv2.imshow('image',corp)
                                 # cv2.waitKey(0)
                                 # cv2.destroyAllWindows()
-                                azure_func(con_str,car_in=True,img=corp)
+                                azure_func(con_str,status=True,class_type=cls_type,img=corp)
                             time.sleep(2)
                         else:
-                            reset_car+=1
-                            if reset_car==3:
+                            reset_counter+=1
+                            if reset_counter==3:
                                 #three times, send no vehicle reset message
-                                azure_func(con_str,car_in=False,img="none")
+                                azure_func(con_str,status=True,class_type=cls_type,img=None)
 
             # Print time (inference-only)
             print(f'{s}Done. ({t3 - t2:.3f}s)')
@@ -360,7 +362,8 @@ def parse_opt():
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--azure_upload', action='store_true', help='allow to upload to azure')
     parser.add_argument('--connection_string', type=str, default="no connection string", help='connection string to upload to azure')
-    parser.add_argument('--reset_car', type=int, default=0, help='reset pointer for reset the car in condition')
+    parser.add_argument('--reset_counter', type=int, default=0, help='reset pointer for reset the class status')
+    parser.add_argument('--cls', type=str, default="car", help='create class to detect and report any class types')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)
