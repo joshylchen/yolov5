@@ -363,7 +363,7 @@ def parse_opt():
     parser.add_argument('--azure_upload', action='store_true', help='allow to upload to azure')
     parser.add_argument('--connection_string', type=str, default="no connection string", help='connection string to upload to azure')
     parser.add_argument('--reset_counter', type=int, default=0, help='reset pointer for reset the class status')
-    parser.add_argument('--cls', type=str, default="car", help='create class to detect and report any class types')
+    parser.add_argument('--cls_type', type=str, default="car", help='create class to detect and report any class types')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)
