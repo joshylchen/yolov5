@@ -39,7 +39,8 @@ from utils.plots import Annotator, colors
 from utils.torch_utils import load_classifier, select_device, time_sync
 
 #azure upload function
-async def azure_func(conn_str,car_in=False,img="none"):
+#async def azure_func(conn_str,car_in=False,img="none"):
+def azure_func(conn_str,car_in=False,img="none"):
     # use to send azure iot hub once
 
     print(conn_str)
@@ -272,14 +273,20 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                         if save_crop:
                             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
                     #upload to azure
+                    ##################################################################################################################
                     if azure_upload:
                         con_str=connection_string
-                        if "car" in class_label:
+                        if "person" in class_label:
                             c = int(cls)  # integer class
                             label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                             annotator.box_label(xyxy, label, color=colors(c, True))
-                            if names[c] == "car":   
-                                azure_func(con_str,car_in=True,img=p.stem)
+                            if names[c] == "person":   
+                                corp=save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True,save=False)
+                                ###opencv debug line
+                                # cv2.imshow('image',corp)
+                                # cv2.waitKey(0)
+                                # cv2.destroyAllWindows()
+                                azure_func(con_str,car_in=True,img=corp)
                             time.sleep(2)
                         else:
                             reset_car+=1
