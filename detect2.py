@@ -40,15 +40,16 @@ from utils.torch_utils import load_classifier, select_device, time_sync
 
 #azure upload function
 #async def azure_func(conn_str,car_in=False,img="none"):
-def azure_func(conn_str,cls_type="car",status=False,img="none"):
+async def azure_func(conn_str,class_type="car",status=False,img="none"):
+#def azure_func(conn_str,class_type="car",status=False,img="none"):
     # use to send azure iot hub once
 
     print(conn_str)
     # Create instance of the device client using the authentication provider
-    ##device_client = IoTHubDeviceClient.create_from_connection_string(conn_str)
+    device_client = IoTHubDeviceClient.create_from_connection_string(conn_str)
 
     # Connect the device client.
-    ##await device_client.connect()
+    await device_client.connect()
 
     # define behavior for receiving a message
     def message_handler(message):
@@ -59,29 +60,33 @@ def azure_func(conn_str,cls_type="car",status=False,img="none"):
 
 
     # set the message handler on the client
-    ##device_client.on_message_received = message_handler
+    device_client.on_message_received = message_handler
 
     # Send a single message
+    _, im_arr = cv2.imencode('.jpg', img)  # im_arr: image in Numpy one-dim array format.
+    im_bytes = im_arr.tobytes()
+    im_b64 = base64.b64encode(im_bytes)
+    img=im_b64
     print("Sending message...")
     msg = {
         "name": "Deep Learning Model",
         "status": status,
-        "class": cls_type,
+        "class": class_type,
         "image": img,
         "timestamp" : datetime.now()
     }
     print(msg)
-    ##await device_client.send_message(json.dumps(msg, indent=4, sort_keys=True, default=str))
+    await device_client.send_message(json.dumps(msg, indent=4, sort_keys=True, default=str))
     time.sleep(1)
     print("Message successfully sent!")
 
    
 
     # finally, shut down the client
-    ##await device_client.shutdown()
+    await device_client.shutdown()
 
 @torch.no_grad()
-def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
+async def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         source=ROOT / 'data/images',  # file/dir/URL/glob, 0 for webcam
         imgsz=640,  # inference size (pixels)
         conf_thres=0.25,  # confidence threshold
@@ -108,7 +113,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         azure_upload=False,  # allow to upload to azure
         connection_string="no string",  # use connection string when azure_upload=true
         reset_counter=0, #reset class pointer, for status reporting.
-        cls_type="car", #class used for detection
+        class_type="car", #class used for detection
         
 
         ):
@@ -278,23 +283,23 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                     ##################################################################################################################
                     if azure_upload:
                         con_str=connection_string
-                        if cls_type in class_label:
+                        if class_type in class_label:
                             c = int(cls)  # integer class
                             label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
                             annotator.box_label(xyxy, label, color=colors(c, True))
-                            if names[c] == cls_type:   
+                            if names[c] == class_type:   
                                 corp=save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True,save=False)
                                 ###opencv debug line
                                 # cv2.imshow('image',corp)
                                 # cv2.waitKey(0)
                                 # cv2.destroyAllWindows()
-                                azure_func(con_str,status=True,class_type=cls_type,img=corp)
+                                await azure_func(con_str,status=True,class_type=class_type,img=corp)
                             time.sleep(2)
-                        else:
-                            reset_counter+=1
-                            if reset_counter==3:
-                                #three times, send no vehicle reset message
-                                azure_func(con_str,status=True,class_type=cls_type,img=None)
+                        # else:
+                        #     reset_counter+=1
+                        #     if reset_counter==3:
+                        #         #three times, send no vehicle reset message
+                        #         azure_func(con_str,status=False,class_type=class_type,img=None)
 
             # Print time (inference-only)
             print(f'{s}Done. ({t3 - t2:.3f}s)')
@@ -363,18 +368,18 @@ def parse_opt():
     parser.add_argument('--azure_upload', action='store_true', help='allow to upload to azure')
     parser.add_argument('--connection_string', type=str, default="no connection string", help='connection string to upload to azure')
     parser.add_argument('--reset_counter', type=int, default=0, help='reset pointer for reset the class status')
-    parser.add_argument('--cls_type', type=str, default="car", help='create class to detect and report any class types')
+    parser.add_argument('--class_type', type=str, default="car", help='create class to detect and report any class types')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)
     return opt
 
 
-def main(opt):
+async def main(opt):
     check_requirements(exclude=('tensorboard', 'thop'))
-    run(**vars(opt))
+    await run(**vars(opt))
 
 
 if __name__ == "__main__":
     opt = parse_opt()
-    main(opt)
+    asyncio.run(main(opt))
