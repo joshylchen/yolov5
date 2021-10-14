@@ -63,16 +63,26 @@ async def azure_func(conn_str,class_type="car",status=False,img="none"):
     device_client.on_message_received = message_handler
 
     # Send a single message
-    _, im_arr = cv2.imencode('.jpg', img)  # im_arr: image in Numpy one-dim array format.
+    #resize image to avoid exceed limit
+    #calculate the 50 percent of original dimensions
+
+    width = int(img.shape[1] * 0.25)
+    height = int(img.shape[0] * 0.25)
+
+    # dsize
+    dsize = (width, height)
+
+    # resize image
+    resize_img= cv2.resize(img, dsize)
+    _, im_arr = cv2.imencode('.jpg', resize_img)  # im_arr: image in Numpy one-dim array format.
     im_bytes = im_arr.tobytes()
     im_b64 = base64.b64encode(im_bytes)
-    img=im_b64
     print("Sending message...")
     msg = {
         "name": "Deep Learning Model",
         "status": status,
         "class": class_type,
-        "image": img,
+        "image": im_b64,
         "timestamp" : datetime.now()
     }
     print(msg)
