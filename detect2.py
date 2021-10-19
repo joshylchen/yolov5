@@ -63,12 +63,15 @@ async def azure_func(conn_str,class_type="car",status=False,img="none"):
     device_client.on_message_received = message_handler
 
     # Send a single message
-    #resize image to avoid exceed limit
+    #resize image to avoid exceed limit, power bi can take up to 3008300
     #calculate the 50 percent of original dimensions
 
     width = int(img.shape[1] * 0.25)
     height = int(img.shape[0] * 0.25)
-
+    if width >= height:
+        dsize=(300,height*300/width)
+    else:
+        dsize=(width*300/height,300)
     # dsize
     dsize = (width, height)
 
